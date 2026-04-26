@@ -8,6 +8,14 @@ import os
 import asyncio
 import random
 from collections import deque
+import os
+import sys
+
+# Use correct cookies path based on OS
+if sys.platform == "win32":
+    COOKIE_FILE = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+else:
+    COOKIE_FILE = 'COOKIE_FILE'
 
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
     client_id=os.getenv("SPOTIFY_CLIENT_ID"),
@@ -20,7 +28,7 @@ YDL_OPTS = {
     'no_warnings': True,
     'default_search': 'ytsearch',
     'noplaylist': False,
-    'cookiefile': '/home/ubuntu/djdoof/cookies.txt',
+    'cookiefile': 'COOKIE_FILE',
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'opus',
@@ -112,7 +120,7 @@ class MusicCog(commands.Cog):
 
     async def suggest_query(self, query):
         loop = asyncio.get_event_loop()
-        with yt_dlp.YoutubeDL({'quiet': True, 'cookiefile': '/home/ubuntu/djdoof/cookies.txt'}) as ydl:
+        with yt_dlp.YoutubeDL({'quiet': True, 'cookiefile': 'COOKIE_FILE'}) as ydl:
             results = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
             if results and 'entries' in results:
                 return [entry.get('title', 'Unknown') for entry in results['entries'][:5]]
