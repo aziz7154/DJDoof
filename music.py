@@ -114,7 +114,8 @@ class MusicCog(commands.Cog):
         loop = asyncio.get_event_loop()
         with yt_dlp.YoutubeDL({
             'quiet': True,
-            'extractor_args': {'youtube': {'player_client': ['android_vr']}},
+            'extract_flat': True,
+            'default_search': 'ytsearch5',
         }) as ydl:
             results = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
             if results and 'entries' in results:
