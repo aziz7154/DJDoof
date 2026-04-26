@@ -28,6 +28,8 @@ YDL_OPTS = {
     'default_search': 'ytsearch',
     'noplaylist': False,
     'cookiefile': COOKIE_FILE,
+    'extractor_args': {'youtube': {'player_client': ['android_vr']}},
+    'remote_components': ['ejs:github'],
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'opus',
@@ -119,7 +121,12 @@ class MusicCog(commands.Cog):
 
     async def suggest_query(self, query):
         loop = asyncio.get_event_loop()
-        with yt_dlp.YoutubeDL({'quiet': True, 'cookiefile': COOKIE_FILE}) as ydl:
+        with yt_dlp.YoutubeDL({
+            'quiet': True,
+            'cookiefile': COOKIE_FILE,
+            'extractor_args': {'youtube': {'player_client': ['android_vr']}},
+            'remote_components': ['ejs:github'],
+        }) as ydl:            
             results = await loop.run_in_executor(None, lambda: ydl.extract_info(f"ytsearch5:{query}", download=False))
             if results and 'entries' in results:
                 return [entry.get('title', 'Unknown') for entry in results['entries'][:5]]
