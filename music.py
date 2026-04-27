@@ -214,7 +214,7 @@ class MusicCog(commands.Cog):
             )
             embed.set_footer(text=f"Requested by {requester}")
             await interaction.followup.send(embed=embed)
-            if not vc.is_playing():
+            if not vc.is_playing() and not vc.is_paused():
                 await self.play_next(interaction)
             return
 
@@ -231,7 +231,7 @@ class MusicCog(commands.Cog):
                 )
                 embed.set_footer(text=f"Requested by {requester}")
                 await interaction.followup.send(embed=embed)
-                if not vc.is_playing():
+                if not vc.is_playing() and not vc.is_paused():
                     await self.play_next(interaction)
                 return
 
@@ -248,7 +248,7 @@ class MusicCog(commands.Cog):
                 )
                 embed.set_footer(text=f"Requested by {requester}")
                 await interaction.followup.send(embed=embed)
-                if not vc.is_playing():
+                if not vc.is_playing() and not vc.is_paused():
                     await self.play_next(interaction)
                 return
 
@@ -267,7 +267,7 @@ class MusicCog(commands.Cog):
         song = {'query': query, 'requested_by': requester}
         self.queue.append(song)
 
-        if not vc.is_playing():
+        if not vc.is_playing() and not vc.is_paused():
             await self.play_next(interaction)
         else:
             try:
@@ -285,33 +285,37 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name="skip", description="Skip the current song")
     async def skip(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc and vc.is_playing():
             vc.stop()
-            await interaction.response.send_message("Skipped! ⏭️")
+            await interaction.followup.send("Skipped! ⏭️")
         else:
-            await interaction.response.send_message("Nothing is playing!")
+            await interaction.followup.send("Nothing is playing!")
 
     @app_commands.command(name="pause", description="Pause the current song")
     async def pause(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc and vc.is_playing():
             vc.pause()
-            await interaction.response.send_message("Paused ⏸️")
+            await interaction.followup.send("Paused ⏸️")
         else:
-            await interaction.response.send_message("Nothing is playing!")
+            await interaction.followup.send("Nothing is playing!")
 
     @app_commands.command(name="resume", description="Resume the current song")
     async def resume(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc and vc.is_paused():
             vc.resume()
-            await interaction.response.send_message("Resumed ▶️")
+            await interaction.followup.send("Resumed ▶️")
         else:
-            await interaction.response.send_message("Nothing is paused!")
+            await interaction.followup.send("Nothing is paused!")
 
     @app_commands.command(name="stop", description="Stop music and clear the queue")
     async def stop(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         vc = interaction.guild.voice_client
         if vc:
             self.queue.clear()
@@ -321,14 +325,15 @@ class MusicCog(commands.Cog):
                 self._timeout_task = None
             vc.stop()
             await vc.disconnect()
-            await interaction.response.send_message("Stopped and disconnected 👋")
+            await interaction.followup.send("Stopped and disconnected 👋")
         else:
-            await interaction.response.send_message("I'm not in a voice channel!")
+            await interaction.followup.send("I'm not in a voice channel!")
 
     @app_commands.command(name="queue", description="Show the current queue")
     async def show_queue(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         if not self.queue and not self.current:
-            await interaction.response.send_message("The queue is empty!")
+            await interaction.followup.send("The queue is empty!")
             return
 
         embed = discord.Embed(title="DJ Doof's Queue 🎶", color=discord.Color.blurple())
@@ -340,35 +345,39 @@ class MusicCog(commands.Cog):
             embed.add_field(name="Up Next", value="\n".join(lines), inline=False)
         if len(self.queue) > 10:
             embed.set_footer(text=f"...and {len(self.queue) - 10} more songs")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="shuffle", description="Toggle shuffle mode")
     async def toggle_shuffle(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         self.shuffle = not self.shuffle
         state = "on 🔀" if self.shuffle else "off"
-        await interaction.response.send_message(f"Shuffle is now **{state}**")
+        await interaction.followup.send(f"Shuffle is now **{state}**")
 
     @app_commands.command(name="loop", description="Toggle loop mode")
     async def toggle_loop(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         self.loop = not self.loop
         state = "on 🔁" if self.loop else "off"
-        await interaction.response.send_message(f"Loop is now **{state}**")
+        await interaction.followup.send(f"Loop is now **{state}**")
 
     @app_commands.command(name="volume", description="Set the volume (0-100)")
     async def set_volume(self, interaction: discord.Interaction, level: int):
+        await interaction.response.defer()
         if not 0 <= level <= 100:
-            await interaction.response.send_message("Volume must be between 0 and 100!")
+            await interaction.followup.send("Volume must be between 0 and 100!")
             return
         self.volume = level / 100
         vc = interaction.guild.voice_client
         if vc and vc.source:
             vc.source.volume = self.volume
-        await interaction.response.send_message(f"Volume set to **{level}%** 🔊")
+        await interaction.followup.send(f"Volume set to **{level}%** 🔊")
 
     @app_commands.command(name="nowplaying", description="Show the currently playing song")
     async def nowplaying(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         if not self.current:
-            await interaction.response.send_message("Nothing is playing right now!")
+            await interaction.followup.send("Nothing is playing right now!")
             return
         embed = discord.Embed(
             title="Now Playing 🎵",
@@ -379,10 +388,11 @@ class MusicCog(commands.Cog):
         embed.add_field(name="Loop", value="🔁 On" if self.loop else "Off", inline=True)
         embed.add_field(name="Shuffle", value="🔀 On" if self.shuffle else "Off", inline=True)
         embed.add_field(name="Volume", value=f"🔊 {int(self.volume * 100)}%", inline=True)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="help", description="Show all DJ Doof commands")
     async def help(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         embed = discord.Embed(
             title="DJ Doof Commands 🎧",
             description="*Behold! The Music-inator! Here's everything I can do:*",
@@ -410,7 +420,7 @@ class MusicCog(commands.Cog):
 • Bot disconnects after 10 minutes of inactivity
 """, inline=False)
         embed.set_footer(text="Curse you, Perry the Platypus, for interrupting my playlist. 🦆")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(MusicCog(bot))
