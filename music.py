@@ -69,21 +69,24 @@ class MusicCog(commands.Cog):
             await interaction.channel.send("👋 No songs in the queue for 10 minutes, disconnecting!")
 
     def get_spotify_tracks(self, url):
+        import re
+        # Extract track/playlist ID from URL
         if "track" in url:
-            track = sp.track(url)
-            return [f"{track['name']} {track['artists'][0]['name']}"]
-        elif "playlist" in url:
-            results = sp.playlist_tracks(url)
-            return [
-                f"{item['track']['name']} {item['track']['artists'][0]['name']}"
-                for item in results['items'] if item['track']
-            ]
-        elif "album" in url:
-            results = sp.album_tracks(url)
-            return [
-                f"{item['name']} {item['artists'][0]['name']}"
-                for item in results['items']
-            ]
+            # Scrape track name from Spotify oEmbed API (no auth needed)
+            import urllib.request
+            import json
+            try:
+                oembed_url = f"https://open.spotify.com/oembed?url={url}"
+                req = urllib.request.urlopen(oembed_url)
+                data = json.loads(req.read().decode())
+                title = data.get('title', '')
+                return [title] if title else []
+            except:
+                return []
+        elif "playlist" in url or "album" in url:
+            # For playlists/albums without API, we can't get track list
+            # Return the URL itself and let yt-dlp handle it
+            return [url]
         return []
 
     async def get_soundcloud_playlist(self, url):
