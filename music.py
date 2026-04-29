@@ -69,52 +69,56 @@ class MusicCog(commands.Cog):
             await interaction.channel.send("👋 No songs in the queue for 10 minutes, disconnecting!")
 
     def get_spotify_tracks(self, url):
-        import urllib.request
-        import json
-        import re
+            import urllib.request
+            import json
+            import re
 
-        if "track" in url:
-            try:
-                oembed_url = f"https://open.spotify.com/oembed?url={url}"
-                req = urllib.request.urlopen(oembed_url)
-                data = json.loads(req.read().decode())
-                title = data.get('title', '')
-                return [title] if title else []
-            except:
-                return []
+            if "track" in url:
+                try:
+                    oembed_url = f"https://open.spotify.com/oembed?url={url}"
+                    req = urllib.request.urlopen(oembed_url)
+                    data = json.loads(req.read().decode())
+                    title = data.get('title', '')
+                    return [title] if title else []
+                except:
+                    return []
 
-        elif "playlist" in url or "album" in url:
-            try:
-                # Use yt-dlp to extract Spotify playlist via scraping
-                import yt_dlp
-                ydl_opts = {
-                    'quiet': True,
-                    'extract_flat': True,
-                    'noplaylist': False,
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    if info and 'entries' in info:
+            elif "playlist" in url or "album" in url:
+                try:
+                    # Extract playlist/album ID
+                    match = re.search(r'spotify\.com/(playlist|album)/([a-zA-Z0-9]+)', url)
+                    if not match:
+                        return []
+                    content_type = match.group(1)
+                    content_id = match.group(2)
+
+                    # Fetch embed page which contains track data
+                    embed_url = f"https://open.spotify.com/embed/{content_type}/{content_id}"
+                    req = urllib.request.Request(embed_url, headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    })
+                    response = urllib.request.urlopen(req)
+                    html = response.read().decode('utf-8')
+
+                    # Extract JSON data from the page
+                    match = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
+                    if match:
+                        data = json.loads(match.group(1))
+                        # Navigate to track list
+                        entities = data.get('props', {}).get('pageProps', {}).get('state', {}).get('data', {}).get('entity', {})
                         tracks = []
-                        for entry in info['entries']:
-                            title = entry.get('title', '')
-                            artist = entry.get('artist', '') or entry.get('uploader', '')
+                        items = entities.get('trackList', []) or entities.get('items', [])
+                        for item in items:
+                            title = item.get('title', '') or item.get('track', {}).get('name', '')
+                            artist = item.get('subtitle', '') or item.get('track', {}).get('artists', [{}])[0].get('name', '')
                             if title:
-                                query = f"{title} {artist}".strip()
-                                tracks.append(query)
-                        return tracks
-            except:
-                pass
-            # Fallback — search by playlist title
-            try:
-                oembed_url = f"https://open.spotify.com/oembed?url={url}"
-                req = urllib.request.urlopen(oembed_url)
-                data = json.loads(req.read().decode())
-                title = data.get('title', '')
-                return [title] if title else []
-            except:
+                                tracks.append(f"{title} {artist}".strip())
+                        if tracks:
+                            return tracks
+                except Exception as e:
+                    print(f"Spotify scrape error: {e}")
                 return []
-        return []
+            return []
 
     async def get_soundcloud_playlist(self, url):
         loop = asyncio.get_event_loop()
