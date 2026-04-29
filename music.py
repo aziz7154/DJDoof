@@ -71,6 +71,8 @@ class MusicCog(commands.Cog):
     def get_spotify_tracks(self, url):
         import urllib.request
         import json
+        import re
+
         if "track" in url:
             try:
                 oembed_url = f"https://open.spotify.com/oembed?url={url}"
@@ -80,7 +82,30 @@ class MusicCog(commands.Cog):
                 return [title] if title else []
             except:
                 return []
+
         elif "playlist" in url or "album" in url:
+            try:
+                # Use yt-dlp to extract Spotify playlist via scraping
+                import yt_dlp
+                ydl_opts = {
+                    'quiet': True,
+                    'extract_flat': True,
+                    'noplaylist': False,
+                }
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    if info and 'entries' in info:
+                        tracks = []
+                        for entry in info['entries']:
+                            title = entry.get('title', '')
+                            artist = entry.get('artist', '') or entry.get('uploader', '')
+                            if title:
+                                query = f"{title} {artist}".strip()
+                                tracks.append(query)
+                        return tracks
+            except:
+                pass
+            # Fallback — search by playlist title
             try:
                 oembed_url = f"https://open.spotify.com/oembed?url={url}"
                 req = urllib.request.urlopen(oembed_url)
