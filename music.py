@@ -66,7 +66,9 @@ class MusicCog(commands.Cog):
             self.queue.clear()
             self.current = None
             await vc.disconnect()
-            await interaction.channel.send("👋 No songs in the queue for 10 minutes, disconnecting!")
+            if self.text_channel:
+                await self.text_channel.send("✅ Queue is empty! Add more songs with `/play`")
+            await vc.disconnect()
 
     def get_spotify_tracks(self, url):
             import urllib.request
@@ -176,9 +178,11 @@ class MusicCog(commands.Cog):
 
         if not self.queue:
             self.current = None
+            if self.text_channel:
+                await self.text_channel.send("✅ Queue is now empty! Add more songs with `/play`")
             if self._timeout_task:
                 self._timeout_task.cancel()
-            self._timeout_task = asyncio.ensure_future(self.start_timeout(interaction))
+            self._timeout_task = asyncio.ensure_future(self.start_timeout(guild))
             return
 
         if self.shuffle:
@@ -286,20 +290,47 @@ class MusicCog(commands.Cog):
                     await self.play_next(interaction)
                 return
 
-        # --- Single song (search or direct URL) ---
-        if not query.startswith("http"):
-            suggestions = await self.suggest_query(query)
-            if suggestions:
-                suggestion_text = "\n".join([f"`{i+1}.` {s}" for i, s in enumerate(suggestions)])
-                embed = discord.Embed(
-                    title="Did you mean...? 🔍",
-                    description=f"Closest matches for **{query}**:\n\n{suggestion_text}\n\nPlaying the top result!",
-                    color=discord.Color.blurple()
-                )
-                await interaction.followup.send(embed=embed)
+        # --- Single song or multi-queue (search or direct URL) ---
+        queries = [q.strip() for q in query.split('|') if q.strip()]
 
-        song = {'query': query, 'requested_by': requester}
-        self.queue.append(song)
+        for q in queries:
+            if not q.startswith("http"):
+                song = {'query': q, 'requested_by': requester}
+                self.queue.append(song)
+            else:
+                song = {'query': q, 'requested_by': requester}
+                self.queue.append(song)
+
+        if len(queries) > 1:
+            await interaction.followup.send(f"Added **{len(queries)}** songs to the queue!")
+        elif not vc.is_playing() and not vc.is_paused():
+            # Show suggestions for single search
+            if not queries[0].startswith("http"):
+                suggestions = await self.suggest_query(queries[0])
+                if suggestions:
+                    suggestion_text = "\n".join([f"`{i+1}.` {s}" for i, s in enumerate(suggestions)])
+                    embed = discord.Embed(
+                        title="Did you mean...? 🔍",
+                        description=f"Closest matches for **{queries[0]}**:\n\n{suggestion_text}\n\nPlaying the top result!",
+                        color=discord.Color.blurple()
+                    )
+                    await interaction.followup.send(embed=embed)
+        else:
+            try:
+                track = await self.get_audio(queries[0])
+                embed = discord.Embed(title="Added Track ✅", color=discord.Color.green())
+                embed.add_field(name="Track", value=f"**[{track['title']}]({track['webpage_url']})**", inline=False)
+                embed.add_field(name="Duration", value=format_duration(track['duration']), inline=True)
+                embed.add_field(name="Position in queue", value=str(len(self.queue)), inline=True)
+                if track['thumbnail']:
+                    embed.set_thumbnail(url=track['thumbnail'])
+                embed.set_footer(text=f"Requested by {requester}")
+                await interaction.followup.send(embed=embed)
+            except Exception:
+                await interaction.followup.send(f"Added to queue: **{query}**")
+
+        if not vc.is_playing() and not vc.is_paused():
+            await self.play_next(interaction.guild)
 
         if not vc.is_playing() and not vc.is_paused():
             await self.play_next(interaction)
