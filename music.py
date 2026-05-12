@@ -2,17 +2,10 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import yt_dlp
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
-import os
 import asyncio
 import random
 from collections import deque
 
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=os.getenv("SPOTIFY_CLIENT_ID"),
-    client_secret=os.getenv("SPOTIFY_CLIENT_SECRET")
-))
 
 YDL_OPTS = {
     'format': 'bestaudio/best',
@@ -50,6 +43,7 @@ class MusicCog(commands.Cog):
         self.shuffle = False
         self.volume = 0.5
         self._timeout_task = None
+        self.text_channel = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.channel.name != "music":
@@ -59,9 +53,9 @@ class MusicCog(commands.Cog):
             return False
         return True
 
-    async def start_timeout(self, interaction):
+    async def start_timeout(self, guild):
         await asyncio.sleep(600)
-        vc = interaction.guild.voice_client
+        vc = guild.voice_client
         if vc and not vc.is_playing() and not self.queue:
             self.queue.clear()
             self.current = None
@@ -172,7 +166,7 @@ class MusicCog(commands.Cog):
                 'thumbnail': info.get('thumbnail', None),
             }
 
-    async def play_next(self, interaction):
+    async def play_next(self, guild):
         if self.loop and self.current:
             self.queue.appendleft(self.current)
 
@@ -199,7 +193,7 @@ class MusicCog(commands.Cog):
 
         track = await self.get_audio(query)
 
-        vc = interaction.guild.voice_client
+        vc = guild.voice_client
         if vc:
             if self._timeout_task:
                 self._timeout_task.cancel()
@@ -208,7 +202,7 @@ class MusicCog(commands.Cog):
             source = discord.FFmpegPCMAudio(track['url'], **FFMPEG_OPTS)
             source = discord.PCMVolumeTransformer(source, volume=self.volume)
             vc.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(
-                self.play_next(interaction), self.bot.loop))
+                self.play_next(guild), self.bot.loop))
 
             embed = discord.Embed(
                 title="Now Playing 🎵",
@@ -220,7 +214,7 @@ class MusicCog(commands.Cog):
             embed.add_field(name="Duration", value=format_duration(track['duration']), inline=True)
             embed.add_field(name="Requested by", value=requested_by, inline=True)
             embed.add_field(name="Songs in queue", value=str(len(self.queue)), inline=True)
-            await interaction.channel.send(embed=embed)
+            await self.text_channel.send(embed=embed)
 
     @app_commands.command(name="play", description="Play a song or playlist from YouTube, Spotify, or SoundCloud")
     async def play(self, interaction: discord.Interaction, query: str):
@@ -234,6 +228,7 @@ class MusicCog(commands.Cog):
         if not vc:
             vc = await interaction.user.voice.channel.connect()
 
+        self.text_channel = interaction.channel
         requester = interaction.user.display_name
 
         # --- Spotify (track, playlist, album) ---
@@ -253,7 +248,7 @@ class MusicCog(commands.Cog):
             embed.set_footer(text=f"Requested by {requester}")
             await interaction.followup.send(embed=embed)
             if not vc.is_playing() and not vc.is_paused():
-                await self.play_next(interaction)
+                await self.play_next(interaction.guild)
             return
 
         # --- SoundCloud playlist/set ---
@@ -270,7 +265,7 @@ class MusicCog(commands.Cog):
                 embed.set_footer(text=f"Requested by {requester}")
                 await interaction.followup.send(embed=embed)
                 if not vc.is_playing() and not vc.is_paused():
-                    await self.play_next(interaction)
+                    await self.play_next(interaction.guild)
                 return
 
         # --- YouTube playlist ---
@@ -287,7 +282,7 @@ class MusicCog(commands.Cog):
                 embed.set_footer(text=f"Requested by {requester}")
                 await interaction.followup.send(embed=embed)
                 if not vc.is_playing() and not vc.is_paused():
-                    await self.play_next(interaction)
+                    await self.play_next(interaction.guild)
                 return
 
         # --- Single song or multi-queue (search or direct URL) ---
@@ -333,7 +328,7 @@ class MusicCog(commands.Cog):
             await self.play_next(interaction.guild)
 
         if not vc.is_playing() and not vc.is_paused():
-            await self.play_next(interaction)
+            await self.play_next(interaction.guild)
         else:
             try:
                 track = await self.get_audio(query)
