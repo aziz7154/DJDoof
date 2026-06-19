@@ -80,6 +80,7 @@ class MusicCog(commands.Cog):
             self.queue.clear()
             self.current = None
             self.current_track = None
+            self.history.clear()
             await vc.disconnect()
             if self.text_channel:
                 await self.text_channel.send("✅ Queue is empty! Add more songs with `/play`")
@@ -288,6 +289,8 @@ class MusicCog(commands.Cog):
 
         vc = interaction.guild.voice_client
         if not vc:
+            self.queue.clear()
+            self.current = None
             vc = await interaction.user.voice.channel.connect()
 
         self.text_channel = interaction.channel
@@ -427,6 +430,7 @@ class MusicCog(commands.Cog):
             self.queue.clear()
             self.current = None
             self.current_track = None
+            self.history.clear()
             if self._timeout_task:
                 self._timeout_task.cancel()
                 self._timeout_task = None
